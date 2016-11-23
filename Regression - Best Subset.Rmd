@@ -1,0 +1,243 @@
+#Linear Model Selection
+```{r, echo=TRUE}
+datafile <- read.csv(file="C:/Users/andrew/Desktop/Boston2.csv",head=TRUE,sep=",")
+datafile$X <- NULL
+head(datafile)
+colnames(datafile)[colnames(datafile)=="medv"] <- "dep_var"
+head(datafile)
+#dim(datafile)
+datafile <- na.omit(datafile)
+#dim(datafile)
+ncol.less.one <- as.numeric(ncol(datafile) -1)
+#(2/3)*nrow(datafile)
+ntrain <- floor((2/3)*nrow(datafile))
+#nrow(datafile)-floor((2/3)*nrow(datafile))
+```
+
+
+```{r, echo=TRUE}
+library(MASS)
+library(ISLR)
+library(glmnet)
+library(boot)
+#head(datafile)
+#names(datafile)
+#lm.fit=lm(dep_var~lstat + age , data=datafile)
+#summary(lm.fit)
+```
+
+```{r, echo=TRUE}
+#cat("Number of Missing Observations: ", max.adjr2, " variables")
+#sum(is.na(datafile$dep_var)) #sum of missing values
+cat("Dimensions of Data Set:", "datafile")
+cat("Rows: ",nrow(datafile)) 
+cat("Columns: ", ncol(datafile))
+#dim(datafile)
+datafile=na.omit(datafile) #Remove any missing values
+cat("Dimensions of Data Set:", "datafile", "After Removing Missing Values")
+cat("Rows: ",nrow(datafile)) 
+cat("Columns: ", ncol(datafile))
+```
+
+```{r, echo=TRUE}
+#To Remove Missing Values
+
+#dim(Hitters)
+#sum(is.na(Hitters))
+#Hitters2 = na.omit(Hitters)
+#dim(Hitters2)
+```
+
+###Regression Model on Full Model
+```{r,echo=TRUE}
+full.model <- lm(dep_var ~., data = datafile)
+summary(full.model)
+```
+##Coefficient Estimates: 95% Confidence Interval on Full Model
+```{r,echo=TRUE}
+confint(full.model)
+```
+
+```{r, echo=TRUE}
+#install.packages("leaps")
+library(leaps)
+regfit.full=regsubsets(dep_var~.,datafile,nvmax=ncol(datafile)) #nvmax=8 by default
+#summary(regfit.full) #shows plot of selected variables for number of variables included
+#?regsubsets
+reg.summary=summary(regfit.full)
+reg.summary
+#names(reg.summary) #list of summary statistics available to help select best model
+```
+```{r, echo=TRUE}
+#To see all R-square, etc
+#reg.summary$rsq #R-square for example, increases from 1:n
+#reg.summary$adjr2
+#reg.summary$rss
+#reg.summary$cp
+#reg.summary$bic
+
+#par(mfrow=c(2,2))
+#plot(reg.summary$rss, xlab="Number of Variables", ylab="RSS", type="l") #type l for connects points with lines
+#plot(reg.summary$adjr2, xlab="Number of Variables", ylab="Adjusted Rsq", type="l")
+```
+
+#How Many Variables for the Best Performance?
+```{r, echo=TRUE}
+min.rss <- which.min(reg.summary$rss)
+cat("Min RSS occurs with ", min.rss, " variables")
+
+max.rsq <- which.max(reg.summary$rsq)
+cat("Max Rsq occurs with ", max.rsq, " variables")
+
+max.adjr2 <- which.max(reg.summary$adjr2)
+cat("Max Adjusted Rsq occurs with ", max.adjr2, " variables")
+
+min.cp <- which.min(reg.summary$cp)
+cat("Min Cp occurs with ", min.cp, " variables")
+
+min.bic <- which.min(reg.summary$bic)
+cat("Min BIC occurs with ", min.bic, " variables")
+
+par(mfrow=c(2,2))
+plot(reg.summary$rss, xlab="Number of Variables", ylab="RSS", type="l", main=paste("Min RSS:",  min.rss, sep=" "))
+points(min.rss,reg.summary$rss[min.rss], col="red", cex=2,pch=20)
+#points(12,reg.summary$adjr2[12], col="red", cex=2,pch=20)
+#points(which.max(reg.summary$adjr2),reg.summary$adjr2[which.max(reg.summary$adjr2)], col="red", cex=2,pch=20)
+
+#main=paste("Point",  max.adjr2, "to",max.adjr2,"m", sep=" ")
+plot(reg.summary$adjr2, xlab="Number of Variables", ylab="Adjusted Rsq", type="l", main=paste("Max AdjRsq:",  max.adjr2, sep=" "))
+points(max.adjr2,reg.summary$adjr2[max.adjr2], col="red", cex=2,pch=20)
+
+plot(reg.summary$cp, xlab="Number of Variables", ylab="Cp", type="l", main=paste("Min Cp:",  min.cp, sep=" "))
+points(min.cp,reg.summary$cp[min.cp], col="red", cex=2,pch=20)
+
+plot(reg.summary$bic, xlab="Number of Variables", ylab="BIC", type="l", main=paste("Min BIC:",  min.bic, sep=" "))
+points(min.bic,reg.summary$bic[min.bic], col="red", cex=2,pch=20)
+```
+
+```{r, echo=TRUE, fig.width=6, fig.height=6}
+x <- c(1:ncol(datafile))
+
+plot(regfit.full,scale="r2", main="R2 vs Variable Selection")
+axis(4, at=x, labels=x, las=2, tck=-0.01)
+mtext("Number of Variables",side=4)
+abline(a = max.rsq, b = 0, lwd=3, col = "red")
+
+plot(regfit.full,scale="adjr2", main="Adjusted Rsq vs Variable Selection")
+axis(4, at=x, labels=x, las=2, tck=-0.01)
+mtext("Number of Variables",side=4)
+abline(a = max.adjr2, b = 0, lwd=3, col = "red")
+
+plot(regfit.full,scale="Cp", main="Cp vs Variable Selection")
+axis(4, at=x, labels=x, las=2, tck=-0.01)
+mtext("Number of Variables",side=4)
+abline(a = min.cp, b = 0, lwd=3, col = "red")
+
+plot(regfit.full,scale="bic", main="BIC vs Variable Selection")
+axis(4, at=x, labels=x, las=2, tck=-0.01)
+mtext("Number of Variables",side=4)
+abline(a = min.bic, b = 0, lwd=3, col = "red")
+
+#mtext("Top",side=3)
+#mtext("Left",side=2)
+#mtext("Bottom",side=1)
+```
+
+###Coefficients for R-sqr
+```{r,echo=TRUE}
+coef(regfit.full,max.rsq)
+```
+###Coefficients for Adj R-sqr
+```{r,echo=TRUE}
+coef(regfit.full,max.adjr2)
+```
+###Coefficients for Cp
+```{r,echo=TRUE}
+coef(regfit.full,min.cp)
+```
+###Coefficients for BIC
+```{r,echo=TRUE}
+coef(regfit.full,min.bic)
+```
+
+
+```{r,echo=TRUE}
+regfit.fwd=regsubsets(dep_var~.,data=datafile,nvmax=ncol(datafile),method="forward")
+summary(regfit.fwd)
+```
+```{r,echo=TRUE}
+regfit.bwd=regsubsets(dep_var~.,data=datafile,nvmax=ncol(datafile),method="backward")
+summary(regfit.bwd)
+```
+
+#Validation Set Approach
+
+```{r,echo=TRUE}
+set.seed(1)
+#dim(datafile) #506x15
+train=sample(seq(nrow(datafile)),ntrain,replace=FALSE)
+#train
+regfit.full=regsubsets(dep_var~.,data=datafile[train,],nvmax=ncol.less.one,method="exhaustive")
+
+val.errors=rep(NA,ncol.less.one)
+x.test=model.matrix(dep_var~.,data=datafile[-train,])
+for(i in 1:ncol.less.one){
+  coefi=coef(regfit.full,id=i)
+  pred=x.test[,names(coefi)]%*%coefi
+  val.errors[i]=mean((datafile$dep_var[-train]-pred)^2)
+}
+
+```
+
+```{r, echo=TRUE}
+min(val.errors)
+max(val.errors)
+which.min(val.errors)
+
+plot(sqrt(val.errors),ylab="Root MSE",xlab="Number of Variables",main="Cross Validation",ylim=c(floor(min(sqrt(regfit.full$rss[-1]/ntrain))),ceiling(max(sqrt(regfit.full$rss[-1]/ntrain)))),pch=19,type="b")
+points(which.min(val.errors),sqrt(val.errors)[which.min(val.errors)], col="red",pch=19)
+
+#sqrt(regfit.full$rss[-1]/ntrain)
+#floor(min(sqrt(regfit.full$rss[-1]/ntrain)))
+#ceiling(max(sqrt(regfit.full$rss[-1]/ntrain)))
+points(sqrt(regfit.full$rss[-1]/ntrain),col="blue",pch=19,type="b")
+legend("topright",legend=c("Training","Validation", "Best"),col=c("blue","black","red"),pch=19)
+
+#a <- names(coef(regfit.full,which.min(val.errors)))
+#a
+#b <- data.frame(a)
+#b  
+#------------------------------
+coef(regfit.full,which.min(val.errors))
+
+nms <- names(coef(regfit.full,which.min(val.errors))) 
+nms <- c(nms,"dep_var")
+nms
+
+idx <- match(nms, names(datafile))
+#idx <- sort(c(idx-1,idx))
+idx <- sort(c(idx))
+NewDF <- datafile[,idx]
+
+head(datafile)
+head(NewDF)
+
+#setNames(as.list(c(1,12)),names(coef(regfit.full,which.min(val.errors))))
+#setNames
+
+#best.model <- lm(dep_var ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat , data = datafile[train,])
+best.model <- lm(dep_var ~., data=NewDF[train,])
+#---------------------------------
+#datafile[train,]
+```
+
+##Linear Regression Model: Parameter Estimates on Training Data for Validation Set Model
+```{r,echo=TRUE}
+summary(best.model)
+```
+
+##Coefficient Estimates: 95% Confidence Interval
+```{r,echo=TRUE}
+confint(best.model)
+```
+

@@ -1,0 +1,106 @@
+#k-Fold Cross-Validation (10-Fold)
+$$  CV_{(k)}=\frac{1}{k}\sum_{i=1}^k MSE_i   $$
+
+```{r}
+library(ISLR)
+library(MASS)
+library(leaps)
+#datafile <- read.csv(file="C:/Users/andrew/Desktop/Boston2.csv",head=TRUE,sep=",")
+datafile <- Hitters
+colnames(datafile)[colnames(datafile)=="Salary"] <- "dep_var"
+
+ncol.less.one <- as.numeric(ncol(datafile) -1)
+
+head(datafile)
+datafile=na.omit(datafile)
+```
+
+###Create Function: predict.regsubsets()
+```{r}
+predict.regsubsets=function(object,newdata,id,...){
+form=as.formula(object$call[[2]])
+mat=model.matrix(form,newdata)
+coefi=coef(object,id=id)
+xvars=names(coefi)
+mat[,xvars]%*%coefi
+}
+```
+
+set.seed(1)
+folds=sample(rep(1:10,length=nrow(datafile)))
+folds
+table(folds)
+cv.errors=matrix(NA,10,19)
+
+```{r}
+k=10
+set.seed(1)
+folds=sample(1:k,nrow(datafile),replace=TRUE)
+cv.errors=matrix(NA,k,ncol.less.one, dimnames=list(NULL, paste(1:ncol.less.one)))
+```
+
+
+for(k in 1:10){
+	best.fit=regsubsets(dep_var~.,data=datafile[folds!=k,],nvmax=19,method="forward")
+	for(i in 1:19){
+		pred=predict(best.fit,datafile[folds==k,],id=i)
+		cv.errors[k,i]=mean((datafile$dep_var[folds==k]-pred)^2)
+	}
+}
+
+
+
+```{r}
+#"forward"
+#"backward"
+#"exhaustive"
+#https://cran.r-project.org/web/packages/leaps/leaps.pdf
+
+for(j in 1:k){
+  best.fit=regsubsets(dep_var~.,data=datafile[folds !=j,], nvmax=ncol.less.one,method="exhaustive") 
+  for(i in 1:ncol.less.one){
+    pred=predict(best.fit,datafile[folds==j,], id=i)
+    cv.errors[j,i]=mean( (datafile$dep_var[folds==j]-pred)^2)
+  }
+}
+```
+  
+```{r}
+mean.cv.errors=apply(cv.errors,2,mean)
+mean.cv.errors
+which.min(mean.cv.errors)
+
+par(mfrow=c(1,1))
+
+
+plot(mean.cv.errors,type='b')
+
+reg.best=regsubsets(dep_var~.,data=datafile, nvmax=ncol.less.one, method="exhaustive")
+coef(reg.best,which.min(mean.cv.errors))
+
+nms <- names(coef(reg.best,which.min(mean.cv.errors))) 
+nms <- c(nms,"dep_var")
+nms
+
+idx <- match(nms, names(datafile))
+#idx <- sort(c(idx-1,idx))
+idx <- sort(c(idx))
+NewDF <- datafile[,idx]
+
+head(datafile)
+head(NewDF)
+
+best.model <- lm(dep_var ~., data=NewDF)
+summary(best.model)
+confint(best.model)
+
+```
+
+
+
+
+
+
+
+
+

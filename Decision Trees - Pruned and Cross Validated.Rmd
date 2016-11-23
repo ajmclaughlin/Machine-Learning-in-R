@@ -1,0 +1,171 @@
+#Decision Trees with 10-Fold Cross-Validation and Pruning
+
+##Load Data
+
+Data Provided By: Ronny Kohavi and Barry Becker, Data Mining and Visualization, Silicon Graphics  
+
+https://archive.ics.uci.edu/ml/datasets/Census+Income
+```{r}
+#load file, I prefer a generic name
+datafile <- read.csv(file="C:/Users/andrew/Desktop/census-income.csv",head=TRUE,sep=",")
+
+#rename the dependent variable, personal preference
+colnames(datafile)[colnames(datafile)=="income"] <- "dep_var"
+```
+
+Special Note: When working with Decision Trees, Random Forests, etc., we can run into an issue with Factor variables.  Specifically, if the factor has more than 32 levels, the algorithms tend to not run.  I chose a file to highlight this.  The variable in this case is `native.country`.  We will dichotomize the location, which is essentially what R would try to do anyway, but we will be more explicit.  In this case, we will have so many `native.country` levels, I would assume they will not be significant anyway.  If this was a "real" project, I would suggest further investigation, possibly placing multiple countries into regions, etc.  However, since this is just for demonstration, I won't waste my time here.
+
+##Data Cleaning 
+
+```{r}
+#check the file type, we'll come back to this later when we are switching between matrices and data.frames
+class(datafile)
+
+#always check the dimensions in the early stages.  often recheck during subsequent data manipulation steps
+dim(datafile)
+
+#view the top few rows of the data
+head(datafile)
+
+#quick summary of data, specific interest in the factor variables that could throw an error
+summary(datafile)
+
+#quick review of variable types, we're looking for the possible factor variables that could cause problems
+sapply(datafile, class)
+
+#guick factor check
+sapply(datafile, is.factor)
+
+#here's where we can see the number of levels of the factors.  Most are fine. native.country will be a problem though. 
+sapply(datafile, levels)
+
+#create a matrix of dummy variables for the high-level factor variable
+#the 0 means we do not need to add a vector of 1s
+m.matrix = model.matrix(~0 + native.country, data=datafile, contrasts.arg=list(native.country=contrasts(datafile$native.country, contrasts=F)))
+
+#turn the matrix into a data.frame (intermediate step)
+m.matrix = as.data.frame(m.matrix )
+
+#append the original file with the new matrix
+m.datafile = data.frame(datafile,m.matrix)
+
+#remove the factor variable that would cause the error 
+drops <- c("native.country")
+m.datafile = m.datafile[ , !(names(m.datafile) %in% drops)]
+
+#review the dimensions of the new datafile.  it will be much wider than before
+dim(m.datafile)
+
+#quick review of the top rows in the new datafile
+head(m.datafile)
+```
+
+
+##Train-Test Split 
+
+```{r}
+#I like to use ~80% of the data for the training set, so I grab the 80% of the rows and force it to the floor integer
+#This step is just to capture the number of rows to use
+ntrain <- floor((4/5)*nrow(m.datafile))
+
+#for reproducible results, set a seed
+set.seed(1)
+
+#now a random sample using the seed above, of the length specified above, will be applied to the datafile.
+#we now have our training set indexed
+train=sample(seq(nrow(m.datafile)),ntrain,replace=FALSE)
+
+#apply the training index to the data to obtain the training set
+training.data = m.datafile[train,]
+
+#apply the opposite of the index to the data to obtain the test set
+testing.data = m.datafile[-train,]
+
+#identify the dependent variable for the test set
+test.dep_var = testing.data$dep_var 
+
+```
+
+#Decision Tree
+
+```{r}
+#the library to be used
+library(tree)
+
+#model the decision tree on the training set
+tree.training=tree(dep_var~.,data=training.data)
+```
+
+#K-Fold Cross-Validation
+
+```{r}
+#Cross-Validate the Decision Tree
+#The FUNction will be pruning based on misclassification
+#Standard approach is K=10 folds but I always like to list this explicitly
+cv.tree.training = cv.tree(tree.training,FUN=prune.misclass,K=10)
+
+#list the items obtainined by the cross-validated tree
+names(cv.tree.training)
+
+#shows the output associated with each cross-validated object
+#most important items are size and dev
+#dev is the number of misclassifications
+cv.tree.training
+
+#display preference
+par(mfrow=c(1,1))
+
+#plot the cross-validated deviation(misclass) against the size of the tree
+plot(cv.tree.training$size, cv.tree.training$dev,type="b")
+
+#show the various sizes of the tree
+cv.tree.training$size
+
+#show the various deviations(misclassifications) of the tree
+cv.tree.training$dev
+
+#show which item in the list obtains the minimum misclassification
+which.min(cv.tree.training$dev)
+
+#show the training sizes again
+#specify the training size associated with the minimum misclassification from above
+#this will be a number.  name it.
+best.nodes = cv.tree.training$size[which.min(cv.tree.training$dev)]
+
+#the best size of the tree
+best.nodes
+
+#prune the decision tree
+#specify the size to be the one which provided the lowest misclassification rate by cross-validation
+prune.training = prune.misclass(tree.training, best=best.nodes)
+```
+
+#The Decision Tree (UGLY)
+
+One of the best reasons to use a decision tree is simplicity.  For the non-statistician, it is easily interpretable, largely due to the graphic nature of the plot.  Ironically enough, the standard plot is quite ugly and hard to read.  This tutorial is focused mainly on the implementation of decision trees and prediction accuracy using cross-validation.  Following this tutorial, we will look at Bagging, Random Forests, and Boosting, which are all improvements upon the basic decision tree.  Later, we will advance to other packages with much better graphics.
+
+```{r}
+#plot the pruned decision tree "branches" 
+plot(prune.training)
+
+#add text to the branches 
+text(prune.training,pretty=0) #ugly ploy
+```
+
+#Predictions and Accuracy Rate on the Test Data
+
+```{r}
+#apply the trained model to the test data
+#make sure to specify this is a classification prediction
+tree.pred=predict(prune.training, testing.data, type="class")
+
+#build a confusion matrix of the predicted values against the true test dependent variables
+table(tree.pred,test.dep_var)  
+
+#the accuracy rate is the percentage of total correctly matched predictions
+mean(tree.pred == test.dep_var) #accuracy rate
+
+#the error rate is 1 minus the percentage of correctly matched predictions
+1 - mean(tree.pred == test.dep_var) #error rate
+  
+```

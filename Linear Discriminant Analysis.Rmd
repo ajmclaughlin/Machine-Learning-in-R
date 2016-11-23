@@ -1,0 +1,36 @@
+#Linear Discriminant Analysis
+
+```{r}
+library(ISLR)
+library(MASS)
+attach(Smarket)
+
+train=(Year<2005)
+Smarket.2005=Smarket[!train,]
+dim(Smarket.2005)
+Direction.2005=Direction[!train]  #Recall, we atttached Smarket
+
+lda.fit=lda(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume,data = Smarket,subset=train)
+lda.fit
+
+plot(lda.fit)
+
+lda.pred=predict(lda.fit, Smarket.2005)
+names(lda.pred)
+
+lda.class=lda.pred$class
+table(lda.class,Direction.2005)
+mean(lda.class==Direction.2005)
+
+sum(lda.pred$posterior[,1]>=.5)
+sum(lda.pred$posterior[,1]<.5)
+
+lda.pred$posterior[1:20,1]
+lda.class[1:20]
+
+lda.pred$posterior[1:20,1]
+lda.class[1:20]
+
+sum(lda.pred$posterior[,1]>.9)
+
+```
