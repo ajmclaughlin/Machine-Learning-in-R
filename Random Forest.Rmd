@@ -1,0 +1,77 @@
+#Random Forest (and Bagging)
+
+```{r}
+library(randomForest)
+library(MASS)
+#load file, I prefer a generic name
+datafile <- read.csv(file="C:/Users/andrew/Desktop/census-income2.csv",head=TRUE,sep=",")
+head(datafile)
+summary(datafile)
+#rename the dependent variable, personal preference
+colnames(datafile)[colnames(datafile)=="income"] <- "dep_var"
+```
+
+```{r}
+drops <- c("native.country")
+datafile = datafile[ , !(names(datafile) %in% drops)]
+
+#review the dimensions of the new datafile.  it will be much wider than before
+dim(datafile)
+
+#I like to use ~80% of the data for the training set, so I grab the 80% of the rows and force it to the floor integer
+#This step is just to capture the number of rows to use
+ntrain <- floor((4/5)*nrow(datafile))
+
+#for reproducible results, set a seed
+set.seed(1)
+
+#now a random sample using the seed above, of the length specified above, will be applied to the datafile.
+#we now have our training set indexed
+train=sample(seq(nrow(datafile)),ntrain,replace=FALSE)
+
+#apply the training index to the data to obtain the training set
+training.data = datafile[train,]
+
+#apply the opposite of the index to the data to obtain the test set
+testing.data = datafile[-train,]
+
+#identify the dependent variable for the test set
+test.dep_var = testing.data$dep_var 
+
+ncols = ncol(datafile)
+```
+
+
+
+```{r}
+oob.err=double(ncols)  #creating a blank space to store the errors
+test.err=double(ncols)
+
+for(mtry in 1:(ncols)){
+	fit=randomForest(as.factor(dep_var)~.,data=training.data,mtry=mtry,ntree=500, importance = TRUE)  
+	oob.err[mtry]=mean(fit$err.rate)
+	pred=predict(fit,testing.data) #predict on the test data
+	test.err[mtry]=with(testing.data,mean(1-(dep_var==pred)))
+	cat(mtry," ") #prints the mtry as it runs
+}
+
+matplot(1:mtry,cbind(test.err,oob.err),pch=19,col=c("red","blue"),type="b",ylab="Error Rate")
+legend("topright",legend=c("OOB","Test"),pch=19,col=c("red","blue"))
+
+oob.err
+which.min(oob.err)
+
+fit.best=randomForest(dep_var~.,data=training.data,mtry=which.min(oob.err),ntree=500) #bump this up to 500+ in true analysis
+fit.best
+
+pred=predict(fit.best,testing.data)
+
+varImpPlot(fit.best)
+
+y=testing.data$dep_var
+yhat=pred
+table(yhat,y) #confusion matrix
+mean(yhat==y) #accuracy rate
+1 - mean(yhat==y) #misclassification rate
+
+```
