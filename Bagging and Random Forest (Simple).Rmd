@@ -1,0 +1,68 @@
+#Bagging
+
+```{r}
+library(randomForest)
+
+datafile <- read.csv(file="C:/Users/andrew/Desktop/census-income2.csv",head=TRUE,sep=",")
+head(datafile)
+summary(datafile)
+
+colnames(datafile)[colnames(datafile)=="income"] <- "dep_var"
+
+drops <- c("nativecountry")
+datafile = datafile[ , !(names(datafile) %in% drops)]
+
+#review the dimensions of the new datafile.  it will be much wider than before
+dim(datafile)
+
+#I like to use ~80% of the data for the training set, so I grab the 80% of the rows and force it to the floor integer
+#This step is just to capture the number of rows to use
+ntrain <- floor((4/5)*nrow(datafile))
+
+#for reproducible results, set a seed
+set.seed(1)
+
+#now a random sample using the seed above, of the length specified above, will be applied to the datafile.
+#we now have our training set indexed
+train=sample(seq(nrow(datafile)),ntrain,replace=FALSE)
+
+#apply the training index to the data to obtain the training set
+training.data = datafile[train,]
+
+#apply the opposite of the index to the data to obtain the test set
+testing.data = datafile[-train,]
+
+#identify the dependent variable for the test set
+test.dep.var = testing.data$dep_var 
+
+ncols = ncol(datafile)
+
+bag.datafile = randomForest(as.factor(dep_var)~.,data=training.data, mtry=ncols, importance=TRUE)
+bag.datafile
+
+yhat.bag = predict(bag.datafile,newdata=testing.data)
+table(yhat.bag,test.dep.var) #confusion matrix
+
+mean(yhat.bag==test.dep.var) #accuracy rate
+1-mean(yhat.bag==test.dep.var) #error rate
+
+```
+
+#Random Forest
+
+```{r}
+set.seed(1)
+rf.training.data = randomForest(as.factor(dep_var)~.,data=training.data, importance=TRUE)
+rf.training.data
+
+names(rf.training.data)
+
+yhat.rf = predict(rf.training.data,newdata=testing.data)
+table(yhat.rf,test.dep.var) #confusion matrix
+
+mean(yhat.rf==test.dep.var) #accuracy rate
+1-mean(yhat.rf==test.dep.var) #error rate
+
+importance(rf.training.data)
+varImpPlot(rf.training.data)
+```
